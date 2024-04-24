@@ -2,13 +2,13 @@ require("dotenv").config();
 const logger = require("../logger/log");
 
 const validateAPIKey = (req, res, next) => {
-  const apiKey = req.headers["x-api-key"];
+  const apiKey = req.query.apiKey;
 
   try {
     if (!apiKey) {
       return res.status(401).json({
         status: "error",
-        message: "API key is required, please provide it in x-api-key header",
+        message: "API key is required, please provide query parameter",
       });
     }
 

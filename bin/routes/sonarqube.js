@@ -4,27 +4,42 @@ const verifyToken = require("../utils/validation/apiKey_validation");
 const logger = require("../utils/logger/log");
 const axios = require("axios");
 
-//WEBHOOK SONARQUBE TO TELEGRAM
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return `${date.toDateString()} ${date.toLocaleTimeString()}`;
+};
 
-router.post("/telegram", async (req, res) => {
+const formatQualityGateCondition = (condition) => {
+  const statusEmoji = condition.status === "OK" ? "✅" : "❌";
+  const value =
+    condition.value !== undefined ? condition.value : "Tidak tersedia";
+  return `- ${condition.metric
+    .replace(/([A-Z])/g, " $1")
+    .trim()}: ${statusEmoji} ${
+    condition.status
+  } (Nilai: ${value}, Batas Error: ${condition.errorThreshold}, Operator: ${
+    condition.operator
+  })`;
+};
+
+// Endpoint untuk mengirim notifikasi ke Telegram
+router.post("/telegram", verifyToken, async (req, res) => {
   try {
     const data = req.body;
+    const analysedAtFormatted = formatDate(data.analysedAt);
+
+    const qualityGateStatusEmoji =
+      data.qualityGate.status === "OK" ? "✅" : "❌";
 
     const text = `
 🔍 *Analisis SonarQube*: ${data.project.name} (${data.project.key})
 🔗 [Lihat Dashboard](${data.project.url})
-📅 Dianalisis pada: ${data.analysedAt}
+📅 Dianalisis pada: ${analysedAtFormatted}
 📈 Status: ${data.status}
-🚀 Quality Gate: ${data.qualityGate.status}
+🚀 Quality Gate: ${qualityGateStatusEmoji} ${data.qualityGate.status}
 
 *Hasil Quality Gate:*
-${data.qualityGate.conditions
-  .map(
-    (condition) => `
-- ${condition.metric}: ${condition.status} (Nilai: ${condition.value}, Batas Error: ${condition.errorThreshold}, Operator: ${condition.operator})
-`
-  )
-  .join("")}
+${data.qualityGate.conditions.map(formatQualityGateCondition).join("\n\n")}
 
 [Commit: ${data.revision.substring(0, 7)}](${data.serverUrl}/dashboard?id=${
       data.project.key
@@ -45,11 +60,11 @@ ${data.qualityGate.conditions
       message: "OK",
     });
   } catch (err) {
+    logger.error(err);
     res.status(500).send({
       status: "error",
       message: err,
     });
-    logger.error(err);
   }
 });
 
